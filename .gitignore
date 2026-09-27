@@ -1,0 +1,27 @@
+# Private runtime data must never be published.
+data/
+backups/
+install-backups/
+backup-config.json
+backup-state.json
+installation.json
+隐藏名单.json
+隐藏记录.jsonl
+*.log
+*.jsonl
+ui-launch.json
+live-*.js
+we-cover-hide.js
+__pycache__/
+*.py[cod]
+.venv/
+test-artifacts/
+dist/
+.DS_Store
+Thumbs.db
+
+
+共享屏蔽名单.json
+
+restore-backups/
+ui-settings.json
