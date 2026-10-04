@@ -10,6 +10,7 @@
       busy=true;
       const draft={...state,buffer:state.buffer.slice(),seen:new Set(state.seen)};
       const rows=[];let from=draft.buffer[0]?.page ?? draft.raw, to=from, requests=0;
+      let hidden=new Set(getHidden());
       try {
         while(rows.length<size) {
           if(!isCurrent())throw Error('Page request cancelled');
@@ -17,6 +18,8 @@
             if(draft.ended || requests>=maxRequests)break;
             const raw=draft.raw, response=await fetchPage(raw);
             if(!isCurrent())throw Error('Page request cancelled');
+            // Refresh after an await, not once for each wallpaper on the page.
+            hidden=new Set(getHidden());
             if(!response || !Array.isArray(response.wallpapers) || !Number.isInteger(response.pagecount) || response.pagecount<0)throw Error('Unsupported page response');
             draft.meta=response;requests++;to=raw;
             draft.buffer=response.wallpapers.map(item=>({item,page:raw}));
@@ -29,7 +32,7 @@
           if(!/^[1-9]\d*$/.test(id))throw Error('Unsupported wallpaper ID');
           if(draft.seen.has(id))continue;
           draft.seen.add(id);
-          if(!new Set(getHidden()).has(id))rows.push(item);
+          if(!hidden.has(id))rows.push(item);
         }
         if(!isCurrent())throw Error('Page request cancelled');
         const page={items:rows,from,to,more:!!draft.buffer.length || !draft.ended,

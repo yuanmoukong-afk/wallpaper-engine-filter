@@ -45,19 +45,55 @@
     }
     if(!host || !qService || typeof host.callDeferred!=='function'){host=null;return false;}
     original=host.callDeferred;
+    // Native callDeferred uses one global callback per method, so page reads
+    // must remain serial. Count queries use a different, explicit callback:
+    // their callDeferred promise never settles and must not enter this queue.
+    function nativePage(args) {
+      const query=args[2];
+      return new Promise((resolve,reject)=>{
+        let timer,guard,errorCallback;
+        const clean=()=>{
+          clearTimeout(timer);
+          if(guard && window.queryWorkshopCallback===guard)window.queryWorkshopCallback=undefined;
+          if(errorCallback && window.queryWorkshopCallbackError===errorCallback)window.queryWorkshopCallbackError=undefined;
+        };
+        timer=setTimeout(()=>{clean();reject(Error('Workshop request timed out'));},15000);
+        try {
+          const pending=original.apply(host,args);
+          const callback=window.queryWorkshopCallback;
+          errorCallback=window.queryWorkshopCallbackError;
+          if(typeof callback==='function' && query?.token!==undefined){
+            guard=function(response){
+              // A response arriving after timeout must not consume a newer callback.
+              if(response?.token!==query.token)return;
+              return callback.apply(this,arguments);
+            };
+            window.queryWorkshopCallback=guard;
+          }
+          Promise.resolve(pending).then(value=>{clean();resolve(value);},error=>{clean();reject(error);});
+        }catch(error){clean();reject(error);}
+      });
+    }
     host.callDeferred=function(object,method,query) {
       if(object!=='browseWallpaperObject' || method!=='queryWorkshop')return original.apply(this,arguments);
+      if(query?.callback){
+        if(typeof window[object]?.[method]==='function'){
+          // The named native callback owns this result (e.g. totalOnly counts).
+          return qService.when(window[object][method].apply(window[object],[...arguments].slice(2)));
+        }
+        return original.apply(this,arguments);
+      }
       const args=[...arguments], own=intent;intent=null;
       if(!own && session)deactivate('changed');
       const job=async()=>{
-        if(!own || own.session!==session)return original.apply(host,args);
+        if(!own || own.session!==session)return nativePage(args);
         const active=own.session;
         try {
           active.query=query;
           if(!active.engine)active.engine=window.weProgressivePages.create({
             start:active.start,size:active.size,getHidden:()=>window.weCoverHide.getHiddenIds(),
             isCurrent:()=>session===active && signature(active.scope)===active.signature,
-            fetchPage:page=>original.call(host,object,method,{...active.query,page})
+            fetchPage:page=>nativePage([object,method,{...active.query,page}])
           });
           const packed=own.index<active.engine.pages.length ? active.engine.pages[own.index] : await active.engine.next();
           if(session!==active || signature(active.scope)!==active.signature)throw Error('Cancelled');

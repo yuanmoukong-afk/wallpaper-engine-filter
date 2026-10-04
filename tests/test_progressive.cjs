@@ -25,5 +25,15 @@ const row=id=>({workshopid:String(id)});
   let alive=true;
   const cancelled=create({start:1,size:1,getHidden:()=>[],isCurrent:()=>alive,fetchPage:async()=>{alive=false;return {wallpapers:[row(1)],pagecount:1};}});
   await assert.rejects(cancelled.next());assert.equal(cancelled.pages.length,0);
+  let reads=0;
+  const large=create({start:1,size:50,getHidden:()=>{reads++;return Array.from({length:3000},(_,i)=>String(i+1));},
+    fetchPage:async n=>({wallpapers:Array.from({length:50},(_,i)=>row((n-1)*50+i+1)),pagecount:100})});
+  assert.equal((await large.next()).limited,true);
+  assert.equal(reads,21,'Build the hidden lookup once per fetched page, not once per item');
+  let evolving=[];
+  const changedDuringRead=create({start:1,size:1,getHidden:()=>evolving,fetchPage:async()=>{
+    evolving=['1'];return {wallpapers:[row(1),row(2)],pagecount:1};
+  }});
+  assert.deepEqual((await changedDuringRead.next()).items.map(r=>r.workshopid),['2']);
   console.log('PASS: start boundary, packing, leftovers, deduplication, no instant refill, retry, bounded scan, cancellation');
 })().catch(e=>{console.error(e);process.exitCode=1;});

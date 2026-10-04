@@ -8,6 +8,7 @@
   let backup;
   let batch;
   let hidden;
+  const decorated=new WeakSet();
   try {
     const saved = JSON.parse(localStorage.getItem(KEY) || '[]');
     if (!Array.isArray(saved)) throw new Error('Invalid saved list');
@@ -51,15 +52,21 @@
     return ['workshop', 'explore', 'exploreHighlights', 'homeHighlights'].includes(tag);
   }
   function paint(card) {
+    const discovery=isDiscovery(card);
+    // The installed library may contain thousands of cards. Leave untouched
+    // library cards alone; only clean up nodes recycled from discovery.
+    if(!discovery && !decorated.has(card))return;
     const id = idFor(card);
     let button = card.querySelector(':scope > .we-cover-toggle');
     let label = card.querySelector(':scope > .we-cover-label');
-    if (id && hidden.has(id) && backup) backup.observe(id, card.ctx.wallpaper.title || '');
-    if (!id || !isDiscovery(card)) {
+    if (!id || !discovery) {
       card.classList.remove('we-cover-hidden');
       button?.remove(); label?.remove();
+      decorated.delete(card);
       return;
     }
+    decorated.add(card);
+    if (hidden.has(id) && backup) backup.observe(id, card.ctx.wallpaper.title || '');
     if (!button) {
       button = document.createElement('button');
       button.type = 'button';
@@ -75,7 +82,7 @@
         const next = new Set(hidden);
         next.has(currentId) ? next.delete(currentId) : next.add(currentId);
         try {
-          if (backup) backup.set(currentId, next.has(currentId), card.ctx.wallpaper.title || '');
+          if (backup) {backup.set(currentId, next.has(currentId), card.ctx.wallpaper.title || '');return;}
           localStorage.setItem(KEY, JSON.stringify([...next]));
         }
         catch (error) { window.alert(t('saveError')); return; }
@@ -90,7 +97,7 @@
     }
     const blocked = hidden.has(id);
     card.classList.toggle('we-cover-hidden', blocked);
-    label.textContent = t('hiddenLabel');
+    if(label.textContent!==t('hiddenLabel'))label.textContent = t('hiddenLabel');
     const text = t(blocked ? 'restore' : 'hide');
     if (button.textContent !== text) button.textContent = text;
     button.title = t(blocked ? 'restoreHint' : 'hideHint');
@@ -142,7 +149,7 @@
     if (e.key !== KEY) return;
     try { const list = JSON.parse(e.newValue || '[]'); if (Array.isArray(list)) { hidden = new Set(list); scan(); } } catch (_) {}
   });
-  window.weCoverHide = {version:'4.2.0', scan, getHiddenIds:() => [...hidden], getBackupStatus:()=>backup?.status(), getBatchState:()=>batch?.state()};
+  window.weCoverHide = {version:'4.2.1', scan, getHiddenIds:() => [...hidden], getBackupStatus:()=>backup?.status(), getBatchState:()=>batch?.state()};
   if(window.createWeBatchHide)batch=window.createWeBatchHide({idFor,isDiscovery,getHidden:()=>[...hidden],apply:items=>{
     if(backup){backup.setMany(items);return;}
     const next=new Set(hidden);for(const item of items)next.add(item.id);

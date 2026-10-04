@@ -2,6 +2,7 @@
 window.createWeBatchHide = function({idFor,isDiscovery,getHidden,apply}) {
   const t=(key,values)=>window.weHideI18n.t(key,values);
   let batch=null, panel, startButton;
+  const decorated=new Set();
   const style=document.createElement('style');
   style.textContent=`
     #we-batch-start{margin-left:8px;cursor:pointer}
@@ -37,7 +38,8 @@ window.createWeBatchHide = function({idFor,isDiscovery,getHidden,apply}) {
   function cancel(){batch=null;refresh();}
   function begin(){
     if(busy())return;
-    const available=cards().filter(c=>!getHidden().includes(idFor(c))&&c.getClientRects().length);
+    const hidden=new Set(getHidden());
+    const available=cards().filter(c=>!hidden.has(idFor(c))&&c.getClientRects().length);
     if(!available.length)return;
     batch={signature:signature(),ids:new Set(available.map(idFor)),keep:new Set()};
     refresh();
@@ -78,14 +80,16 @@ window.createWeBatchHide = function({idFor,isDiscovery,getHidden,apply}) {
     if(startButton){startButton.textContent=t('batchStart');startButton.title=t('batchHint');}
     if(panel){panel.firstElementChild.textContent=t('keepHint');panel.querySelector('#we-batch-cancel').textContent=t('cancel');}
     const all=cards();
-    if(startButton){startButton.style.display=all.length?'':'none';startButton.disabled=!!batch||busy()||!all.some(c=>!getHidden().includes(idFor(c)));}
+    const hidden=new Set(getHidden());
+    if(startButton){startButton.style.display=all.length?'':'none';startButton.disabled=!!batch||!!browserScope(all[0])?.queryActive||!all.some(c=>!hidden.has(idFor(c)));}
     const reveal=document.getElementById('we-hidden-toggle');if(reveal)reveal.disabled=!!batch;
-    for(const card of document.querySelectorAll('.browseWallpaperImage')){
+    for(const card of new Set([...decorated,...(batch?all:[])])){
       const id=idFor(card), member=!!batch&&isDiscovery(card)&&batch.ids.has(id);
       card.classList.toggle('we-batch-member',member);
       card.classList.toggle('we-batch-kept',member&&batch.keep.has(id));
       let label=card.querySelector(':scope>.we-batch-keep');
-      if(!member){label?.remove();continue;}
+      if(!member){label?.remove();decorated.delete(card);continue;}
+      decorated.add(card);
       if(!label){
         label=document.createElement('label');label.className='we-batch-keep';
         const input=document.createElement('input');input.type='checkbox';input.setAttribute('aria-label',t('keepLabel'));

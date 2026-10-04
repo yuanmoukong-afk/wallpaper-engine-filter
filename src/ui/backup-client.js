@@ -3,6 +3,7 @@ window.createWeHiddenBackup = function(initialIds, onUpdate) {
   const config = window.weCoverBackupConfig;
   const KEY = 'we.coverHide.records.v1';
   let records = {}, busy = false, synced = false, state = 'syncing', timer;
+  const titles=new Map();let titleTimer;
   const valid = r => r && /^[1-9]\d*$/.test(r.id) && typeof r.hidden === 'boolean' &&
     Number.isSafeInteger(r.updatedAt) && r.updatedAt >= 0 && typeof r.title === 'string';
   try {
@@ -38,7 +39,7 @@ window.createWeHiddenBackup = function(initialIds, onUpdate) {
           records[incoming.id] = incoming; changed = true;
         }
       }
-      persist();
+      if(changed)persist();
       synced = true;
       if (changed) publish();
       // A click during a request must remain pending until that newer state is sent.
@@ -64,7 +65,23 @@ window.createWeHiddenBackup = function(initialIds, onUpdate) {
   }
   function observe(id,title) {
     const old=records[id];
-    if(synced && old?.hidden && !old.title && title) set(id,true,title);
+    if(!synced || !old?.hidden || old.title || !title)return;
+    titles.set(id,title);
+    if(titleTimer)return;
+    // Metadata must never publish/re-enter scan while a card is being painted.
+    titleTimer=setTimeout(()=>{
+      titleTimer=null;
+      const previous=records;records={...records};let changed=false;
+      for(const [id,title] of titles){
+        const old=records[id];
+        if(!old?.hidden || old.title)continue;
+        records[id]={...old,title,updatedAt:Math.max(Date.now(),old.updatedAt+1)};changed=true;
+      }
+      titles.clear();
+      if(!changed)return;
+      try{persist();state='syncing';schedule();}
+      catch(error){records=previous;state='storageError';}
+    },150);
   }
   window.addEventListener('storage',e=>{
     if(e.key!==KEY || !e.newValue)return;

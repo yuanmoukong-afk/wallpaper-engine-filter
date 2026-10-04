@@ -15,7 +15,9 @@ with sync_playwright() as p:
     window.render=()=>{const grid=document.querySelector('wallpaper-thumbnail');grid.innerHTML='';
       for(const w of s.queryWallpapers){const c=document.createElement('div');c.className='browseWallpaperImage';c.style='position:relative;width:120px;height:80px';
       c.ctx={wallpaper:w,$parent:{wtTag:s.source,$parent:s}};c.textContent=w.title;grid.append(c);}};render();
-    window.host={callDeferred:async(a,b,q)=>{calls.push(q.page);if(outstanding++)collision=true;
+    window.countQueries=0;
+    window.browseWallpaperObject={queryWorkshop:q=>{if(q.totalOnly)countQueries++;}};
+    window.host={callDeferred:async(a,b,q)=>{if(q.totalOnly)return new Promise(()=>{});calls.push(q.page);if(outstanding++)collision=true;
       await new Promise(r=>setTimeout(r,35));outstanding--;
       return {token:q.token,pagecount:4,wallpapers:data[q.page].map(id=>({workshopid:String(id),title:'Item '+id}))};}};
     window.angular={element:()=>({injector:()=>({get:name=>name==='host'?host:{when:p=>p}})})};
@@ -53,6 +55,16 @@ with sync_playwright() as p:
     page.evaluate("s.filter.text='changed';s.callbackChangePage(1)")
     page.wait_for_function('weProgressiveUI.state()===null && !s.queryActive')
     assert not page.evaluate("document.body.classList.contains('we-progressive-active')")
+    assert not page.evaluate('collision')
+    # Native count queries return via their own callback, never this promise.
+    # Putting one in the page queue used to block every subsequent page forever.
+    page.evaluate("host.callDeferred('browseWallpaperObject','queryWorkshop',{totalOnly:true,callback:'onTotalCountReceived'})")
+    for _ in range(3):
+        page.evaluate("s.source='installed';render()")
+        page.wait_for_timeout(300)
+        page.evaluate("s.source='workshop';s.callbackChangePage(1)")
+        page.wait_for_function('!s.queryActive',timeout=2000)
+    assert page.evaluate('countQueries')==1
     assert not page.evaluate('collision')
     browser.close()
 print('PASS: native response adapter, explicit navigation, no instant refill, cached back, filter exit, serialized queries, no language selector')

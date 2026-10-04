@@ -25,3 +25,15 @@ Online Workshop ordering may change during a session; deduplication does not mak
 
 递进仅支持创意工坊，一次翻页最多检查 20 个原始页，可能不足一页。改变筛选会退出；退出后恢复普通分页，可查看前面的原始页。
 创意工坊在线排序可能变化；去重不代表冻结了服务器结果。
+
+## 4.2.1: loading stalls / 加载卡顿修复
+
+Count queries use a separate native callback and no longer block the progressive page queue.
+Page requests time out after 15 seconds; late responses with an older token are ignored.
+Hidden-ID lookups are built once per fetched page. Installed cards do not enrich backup metadata;
+missing discovery titles are saved together without recursively repainting the page.
+Unchanged backup responses no longer rewrite browser storage. Existing hidden lists and recovery logs remain compatible.
+
+数量查询不再堵塞递进翻页队列；单个页面请求等待超过 15 秒会报错，过期编号的迟到响应会被忽略。
+隐藏名单按页建立查找表，已下载页面不再补写备份标题；搜索页缺失的标题合并保存，避免递归刷新。
+备份内容未变化时不再重写浏览器存储。现有隐藏名单和恢复日志继续兼容，无需清空记录。
