@@ -1,6 +1,6 @@
 /* Transactional page packing. Fetching occurs only on an explicit next request. */
 (() => {
-  function create({start, size, fetchPage, getHidden, isCurrent=()=>true, maxRequests=20}) {
+  function create({start, size, fetchPage, getHidden, isCurrent=()=>true, maxRequests=20, onProgress=()=>{}}) {
     if (!Number.isInteger(start) || start < 1 || !Number.isInteger(size) || size < 1) throw Error('Invalid pagination');
     let state={raw:start, buffer:[], seen:new Set(), ended:false, meta:null};
     const pages=[];
@@ -18,6 +18,7 @@
             if(draft.ended || requests>=maxRequests)break;
             const raw=draft.raw, response=await fetchPage(raw);
             if(!isCurrent())throw Error('Page request cancelled');
+            onProgress({page:raw,checked:requests+1,limit:maxRequests});
             // Refresh after an await, not once for each wallpaper on the page.
             hidden=new Set(getHidden());
             if(!response || !Array.isArray(response.wallpapers) || !Number.isInteger(response.pagecount) || response.pagecount<0)throw Error('Unsupported page response');
@@ -40,7 +41,18 @@
         state=draft;pages.push(page);return page;
       } finally {busy=false;}
     }
-    return {next,pages};
+    async function continueLast() {
+      const previous=pages.at(-1);
+      if(!previous?.more)return previous;
+      pages.pop();
+      try {
+        const following=await next();
+        const combined={...following,items:[...previous.items,...following.items],from:previous.from};
+        pages[pages.length-1]=combined;
+        return combined;
+      } catch(error) {pages.push(previous);throw error;}
+    }
+    return {next,continueLast,pages};
   }
   if(typeof module!=='undefined' && module.exports)module.exports={create};
   else window.weProgressivePages={create};

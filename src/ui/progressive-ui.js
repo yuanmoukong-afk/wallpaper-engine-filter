@@ -6,13 +6,17 @@
   let message='',opened=false;
   const messages={
     zh:{open:'递进浏览',start:'启用递进',from:'从原始页开始',prev:'上一页',next:'递进下一页',stop:'退出递进',
-      ready:'点击下一页开始补位；隐藏时不会立即补位。',busy:'正在读取后续页面…',
-      range:'整理页 {page} · 原始页 {from}–{to}',limit:'本次已检查 20 页，可继续下一页。',
+      ready:'点击下一页开始补位；隐藏时不会立即补位。',busy:'正在读取后续页面…',busyProgress:'正在检查原始页 {page}（本轮第 {checked}/100 页）…',
+      range:'整理页 {page} · 原始页 {from}–{to}',limit:'本次最多检查 100 个原始页，可继续。',
+      emptyMore:'已查找原始页 {from}–{to}，还没找到可显示的壁纸；点击“递进下一页”继续。',
+      emptyEnd:'后续页面没有更多可显示的壁纸（已查找至原始页 {to}）。',
       unavailable:'当前界面不支持递进，请在创意工坊加载完成后再试。',error:'读取失败，已退出递进。',
       changed:'搜索条件或页面已改变，递进已退出。',invalid:'请输入有效的原始页码。'},
     en:{open:'Progressive browsing',start:'Enable',from:'Start at original page',prev:'Previous',next:'Next filled page',stop:'Exit',
-      ready:'Click Next to fill a page. Hiding a card does not refill it.',busy:'Reading following pages…',
-      range:'Filled page {page} · Original pages {from}–{to}',limit:'Checked 20 pages; continue with Next.',
+      ready:'Click Next to fill a page. Hiding a card does not refill it.',busy:'Reading following pages…',busyProgress:'Checking original page {page} ({checked}/100 this round)…',
+      range:'Filled page {page} · Original pages {from}–{to}',limit:'Up to 100 original pages per search; continue with Next.',
+      emptyMore:'Searched original pages {from}–{to}, with no visible wallpapers yet. Click Next to keep searching.',
+      emptyEnd:'No more visible wallpapers after original page {to}.',
       unavailable:'Wait for Workshop results to finish loading, then try again.',error:'Loading failed; progressive mode exited.',
       changed:'Search or page changed; progressive mode exited.',invalid:'Enter a valid original page number.'}
   };
@@ -27,6 +31,14 @@
   }
   const signature=s=>JSON.stringify([s.source,s.filter,s.filterAuthor,s.filterPreset,
     document.getElementById('browseSearchFilterText')?.value]);
+  function isEmptyResultRetry(previous,next) {
+    if(!previous || previous.page!==next?.page)return false;
+    const before=previous.excludedTags||[],after=next.excludedTags||[];
+    if(!before.includes('Questionable') || after.includes('Questionable') ||
+       before.length!==after.length+1 || after.some(tag=>!before.includes(tag)))return false;
+    const stable=q=>Object.fromEntries(Object.entries(q).filter(([key])=>key!=='token'&&key!=='excludedTags'));
+    return JSON.stringify(stable(previous))===JSON.stringify(stable(next));
+  }
   function apply(s){if(window.safeApply)window.safeApply(s);else s?.$evalAsync?.();}
   function deactivate(reason='',reload=false) {
     const old=session;session=null;intent=null;message=reason;
@@ -83,23 +95,34 @@
         }
         return original.apply(this,arguments);
       }
-      const args=[...arguments], own=intent;intent=null;
+      const args=[...arguments], requested=intent;intent=null;
+      const retry=!requested && session?.awaitingEmptyRetry && isEmptyResultRetry(session.lastQuery,query)
+        ? {session,index:session.index,continueLast:true}:null;
+      const own=requested||retry;
       if(!own && session)deactivate('changed');
+      if(retry){retry.session.awaitingEmptyRetry=false;retry.session.busy=true;}
       const job=async()=>{
         if(!own || own.session!==session)return nativePage(args);
         const active=own.session;
         try {
           active.query=query;
+          active.lastQuery=query;
           if(!active.engine)active.engine=window.weProgressivePages.create({
             start:active.start,size:active.size,getHidden:()=>window.weCoverHide.getHiddenIds(),
+            maxRequests:100,
+            onProgress:progress=>{active.progress=progress;refresh();},
             isCurrent:()=>session===active && signature(active.scope)===active.signature,
             fetchPage:page=>nativePage([object,method,{...active.query,page}])
           });
-          const packed=own.index<active.engine.pages.length ? active.engine.pages[own.index] : await active.engine.next();
+          const packed=own.continueLast ? await active.engine.continueLast()
+            : own.index<active.engine.pages.length ? active.engine.pages[own.index] : await active.engine.next();
           if(session!==active || signature(active.scope)!==active.signature)throw Error('Cancelled');
           active.index=own.index;active.busy=false;
+          active.progress=null;
           const hidden=new Set(window.weCoverHide.getHiddenIds());
-          return {...packed.meta,token:query.token,wallpapers:packed.items.filter(w=>!hidden.has(String(w.workshopid)))};
+          const wallpapers=packed.items.filter(w=>!hidden.has(String(w.workshopid)));
+          active.awaitingEmptyRetry=wallpapers.length===0;
+          return {...packed.meta,token:query.token,wallpapers};
         }catch(error){if(session===active)deactivate('error');throw error;}
       };
       const pending=queue.catch(()=>{}).then(job);queue=pending.catch(()=>{});
@@ -169,8 +192,10 @@
     nextButton.disabled=!session || session.busy || !!s?.queryActive || (session.index>=0 && !session.engine.pages[session.index].more);
     stopButton.disabled=!!session?.busy;
     let text=message?t(message):t('ready');
-    if(session?.busy)text=t('busy');
-    else if(session?.index>=0){const p=session.engine.pages[session.index];text=t('range',{page:session.index+1,from:p.from,to:p.to})+(p.limited?' · '+t('limit'):'');}
+    if(session?.busy)text=session.progress?t('busyProgress',session.progress):t('busy');
+    else if(session?.index>=0){const p=session.engine.pages[session.index];
+      text=!p.items.length?t(p.more?'emptyMore':'emptyEnd',{from:p.from,to:p.to})
+        :t('range',{page:session.index+1,from:p.from,to:p.to})+(p.limited?' · '+t('limit'):'');}
     if(note.textContent!==text)note.textContent=text;
   }
   window.weProgressiveUI={state:()=>session?{start:session.start,index:session.index,busy:session.busy,pages:session.engine?.pages.length||0}:null};

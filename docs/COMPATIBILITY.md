@@ -19,11 +19,11 @@ A backup process can exit or be disabled; hover Show hidden to check backup stat
 不要直接编辑恢复日志，仅修改文件不会自动导入。不要公开密钥或整个数据目录。
 备份程序可能退出或被禁用，可悬停“显示已隐藏”检查状态，通过 `python tools/backup.py start` 启动。
 
-Progressive mode is Workshop-only, bounded to 20 original pages per navigation, and may end with a partial page.
+Progressive mode is Workshop-only, bounded to 100 original pages per navigation, and may end with a partial page. If a batch has no visible result, the mode remains active; use Next to continue.
 Changing filters exits the mode; exiting restores normal pagination. Earlier original pages remain accessible.
 Online Workshop ordering may change during a session; deduplication does not make the remote results a fixed snapshot.
 
-递进仅支持创意工坊，一次翻页最多检查 20 个原始页，可能不足一页。改变筛选会退出；退出后恢复普通分页，可查看前面的原始页。
+递进仅支持创意工坊，一次翻页最多检查 100 个原始页，可能不足一页。若这一批没有可显示的壁纸，递进会继续保持开启，可按“递进下一页”接着查找。改变筛选会退出；退出后恢复普通分页，可查看前面的原始页。
 创意工坊在线排序可能变化；去重不代表冻结了服务器结果。
 
 ## 4.2.1: loading stalls / 加载卡顿修复
@@ -37,3 +37,9 @@ Unchanged backup responses no longer rewrite browser storage. Existing hidden li
 数量查询不再堵塞递进翻页队列；单个页面请求等待超过 15 秒会报错，过期编号的迟到响应会被忽略。
 隐藏名单按页建立查找表，已下载页面不再补写备份标题；搜索页缺失的标题合并保存，避免递归刷新。
 备份内容未变化时不再重写浏览器存储。现有隐藏名单和恢复日志继续兼容，无需清空记录。
+
+## 4.2.3: extended progressive search / 扩大递进查找
+
+Each Next action can inspect up to 100 original pages. When Workshop automatically retries an empty result with its alternate content-rating filter, progressive browsing recognizes the retry and continues the same filled page. If the scan is still empty, the panel explains the range checked and stays active so Next can continue.
+
+每次递进最多查找 100 个原始页。若创意工坊因空结果自动切换内容分级筛选，递进会识别这次重试并接着补当前页；仍没有结果时会提示已查找范围，并保持递进开启，供用户继续查找。

@@ -34,7 +34,7 @@ Tested against Wallpaper Engine **2.8.42**. Other versions are not guaranteed. N
 | Control | What it does |
 | --- | --- |
 | **Hide wallpaper / Restore wallpaper** | On each discovery card, hide that wallpaper by its Workshop ID. The whole card disappears and the following cards fill the gap. |
-| **Show hidden / Collapse hidden** | Temporarily reveal hidden items on the current page. Click a revealed card for its normal details, or restore it. The count is the total saved hide list, not just this page. |
+| **Show hidden / Collapse hidden** | Temporarily reveal the original covers on the current page under a light translucent tint. Click a revealed card for its normal details, or restore it. The count is the total saved hide list, not just this page. |
 | **Hide this page…** | Start batch selection. Check the wallpapers to **keep**, then press **Hide remaining N**. Checked does **not** mean “delete.” |
 | **Progressive browsing** | Choose an original starting page, enable the mode, then use Next filled page to skip hidden entries and fill a page. Hiding a card never refills it immediately. |
 
@@ -48,7 +48,7 @@ Checking nothing hides all currently unhidden wallpapers on this page. Keeping e
 
 **Your Installed / subscribed library is unaffected.** A subscribed wallpaper can still be hidden in discovery results, while remaining visible in your library. Hiding never unsubscribes, deletes files, or changes wallpaper content.
 
-Normal mode filters the current page. Optional progressive mode provides its own Previous/Next controls and reports the original page range used. Earlier original pages are untouched and remain accessible after exiting the mode. Search changes exit the mode. Each navigation checks up to 20 original pages; continue with Next if it stops short. The final page may contain fewer items.
+Normal mode filters the current page. Optional progressive mode provides its own Previous/Next controls and reports the original page range used. Earlier original pages are untouched and remain accessible after exiting the mode. Search changes exit the mode. Each navigation checks up to 100 original pages; if no visible wallpapers are found, the mode stays active and Next continues searching. The final page may contain fewer items.
 
 **Language settings live in the patch folder.** Open `设置插件语言.cmd`, choose 中文 or English, then reopen the wallpaper browser. There is no in-app language selector or synchronization button.
 

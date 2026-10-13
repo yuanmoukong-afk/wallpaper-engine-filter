@@ -23,8 +23,8 @@
   style.textContent = `
     html:not(.we-show-hidden) .browseWallpaperImage.we-cover-hidden { display:none!important; }
     #we-hidden-toggle { margin-left:8px; cursor:pointer; }
-    .browseWallpaperImage.we-cover-hidden { background-image:none!important; background-color:#292d33!important; }
-    .browseWallpaperImage.we-cover-hidden > .videoBg { visibility:hidden!important; }
+    .browseWallpaperImage.we-cover-hidden::after { content:""; position:absolute; inset:0; z-index:2;
+      background:rgba(255,255,255,.28); pointer-events:none; }
     .we-cover-label { position:absolute; left:0; right:0; top:40%; text-align:center; color:#b9c1ca;
       font:12px sans-serif; pointer-events:none; z-index:3; text-shadow:none; }
     .we-cover-toggle { position:absolute; top:5px; right:5px; z-index:30; padding:4px 6px;
@@ -149,7 +149,7 @@
     if (e.key !== KEY) return;
     try { const list = JSON.parse(e.newValue || '[]'); if (Array.isArray(list)) { hidden = new Set(list); scan(); } } catch (_) {}
   });
-  window.weCoverHide = {version:'4.2.1', scan, getHiddenIds:() => [...hidden], getBackupStatus:()=>backup?.status(), getBatchState:()=>batch?.state()};
+  window.weCoverHide = {version:'4.2.3', scan, getHiddenIds:() => [...hidden], getBackupStatus:()=>backup?.status(), getBatchState:()=>batch?.state()};
   if(window.createWeBatchHide)batch=window.createWeBatchHide({idFor,isDiscovery,getHidden:()=>[...hidden],apply:items=>{
     if(backup){backup.setMany(items);return;}
     const next=new Set(hidden);for(const item of items)next.add(item.id);

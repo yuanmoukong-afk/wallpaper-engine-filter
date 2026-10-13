@@ -26,9 +26,10 @@ with sync_playwright() as p:
     assert card.bounding_box() is None
     assert page.locator('#next').bounding_box()['x'] < next_before['x'], 'Next card must fill the gap'
     assert page.evaluate('clicks') == 0, 'Hide must not select the wallpaper'
-    assert card.evaluate("e=>getComputedStyle(e).backgroundImage") == 'none'
-    assert page.locator('video').evaluate('e=>getComputedStyle(e).visibility') == 'hidden'
     page.locator('#we-hidden-toggle').click()
+    assert card.evaluate("e=>getComputedStyle(e).backgroundImage") != 'none', 'Revealed cards retain the original cover'
+    assert card.evaluate("e=>getComputedStyle(e,'::after').backgroundColor") == 'rgba(255, 255, 255, 0.28)', 'Revealed cards use a light translucent tint'
+    assert page.locator('video').evaluate('e=>getComputedStyle(e).visibility') == 'visible', 'Keep animated covers visible underneath the tint'
     card.click(position={'x':30,'y':80})
     assert page.locator('#details').inner_text() == '12345', 'Hidden card must open details'
     page.reload()
